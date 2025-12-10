@@ -1,0 +1,423 @@
+{
+  "name": "check_llm",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        192
+      ],
+      "id": "87c1b22c-ef15-4c32-acc1-2f1b4c3ca760",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose down web",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        288
+      ],
+      "id": "0acfec62-b7de-4472-a117-b27d4ff00c54",
+      "name": "down",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose up -d web",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        288
+      ],
+      "id": "801e1ad3-d774-410e-b7a4-de9983b28019",
+      "name": "up",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Prod e Dev em linhas diferentes?\nPoderia ser uma linha pra testar cada e em seguida fazer o restart",
+        "height": 176
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -928,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "25fafd27-7735-4564-925f-6b5f80b1eff6",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose logs -n 10 web",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        48,
+        288
+      ],
+      "id": "511263c1-a478-4f5a-90d4-2e8d4f46992c",
+      "name": "logs",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Não dá pra usar -f\nEle fica esperando o comando \"concluir\", então se for contínuo, fica preso",
+        "height": 176
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -16,
+        -96
+      ],
+      "typeVersion": 1,
+      "id": "f4508470-3e7b-4b72-8e85-6dfd5e90371a",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose down redis",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        96
+      ],
+      "id": "e38c5978-aba7-4d72-8210-136642ace2d4",
+      "name": "down1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose up -d redis",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        96
+      ],
+      "id": "941834df-2cb5-441f-a923-8faea16c39f6",
+      "name": "up1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose logs -n 10 redis",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        48,
+        96
+      ],
+      "id": "fe744b51-2bc5-454d-9788-873dffae727e",
+      "name": "logs1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "for i in 5 6 7; do curl -k -o /dev/null -s -w \"%{http_code}\\n\" http://sistemas-gpu-dev.i.tj.pa.gov.br:1143$i/docs; done",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        96
+      ],
+      "id": "097f3ba6-5459-41a9-aba0-5e5978a6541b",
+      "name": "curl_dev",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "for i in 5 6 7; do curl -k -o /dev/null -s -w \"%{http_code}\\n\" http://sistemas-gpu.i.tj.pa.gov.br:1143$i/docs; done",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        288
+      ],
+      "id": "a279324e-2e07-4c52-8572-5a8b44882aca",
+      "name": "curl_prod",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "49f8afee-8d59-45b7-b25d-860d15aaaafd",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "200\n200\n200",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -624,
+        96
+      ],
+      "id": "ca29a417-7a32-4a24-a53b-9677b1e3266b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "49f8afee-8d59-45b7-b25d-860d15aaaafd",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "200\n200\n200",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -624,
+        288
+      ],
+      "id": "a061f109-92ea-4991-8045-6ccf071ab85e",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "content": "## Arrumar nomes dos serviços e diretorios"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -224
+      ],
+      "id": "e8c609d9-ed38-438a-8ef2-eb32218bda19",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "curl_dev",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "curl_prod",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "down": {
+      "main": [
+        [
+          {
+            "node": "up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "up": {
+      "main": [
+        [
+          {
+            "node": "logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "logs": {
+      "main": [
+        []
+      ]
+    },
+    "down1": {
+      "main": [
+        [
+          {
+            "node": "up1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "up1": {
+      "main": [
+        [
+          {
+            "node": "logs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "down1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "curl_dev": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "curl_prod": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4dfe90a3-0847-47e4-95a5-76172f3777e9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f3fd47d9dda0fe32e948b200ee9d1659c0536289b09760ad80c7cb5a76629ac"
+  },
+  "id": "yygxgPUXBZ41Dwwf",
+  "tags": [
+    {
+      "updatedAt": "2025-12-10T14:10:02.765Z",
+      "createdAt": "2025-12-10T14:10:02.765Z",
+      "id": "YPcGJs79VuYp5sGy",
+      "name": "zeus"
+    }
+  ]
+}

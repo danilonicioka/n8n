@@ -1,0 +1,87 @@
+{
+  "name": "check_license",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        192
+      ],
+      "id": "eed7fe45-adf3-46bb-b86e-abbb8dfbe629",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "nvidia-smi -q | grep -i licen",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        192
+      ],
+      "id": "216490bb-e70b-4395-909f-11dd327f0acc",
+      "name": "check",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Arrumar nomes dos serviços e diretorios"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        -96
+      ],
+      "id": "7e87e209-102e-491a-b83a-b887cea55a0a",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d8833fbc-2e1c-4a64-9384-29255ce856d6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f3fd47d9dda0fe32e948b200ee9d1659c0536289b09760ad80c7cb5a76629ac"
+  },
+  "id": "SH5WarPECYFRkTOq",
+  "tags": [
+    {
+      "updatedAt": "2025-12-10T14:10:02.765Z",
+      "createdAt": "2025-12-10T14:10:02.765Z",
+      "id": "YPcGJs79VuYp5sGy",
+      "name": "zeus"
+    }
+  ]
+}

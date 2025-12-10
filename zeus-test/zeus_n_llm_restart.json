@@ -1,0 +1,214 @@
+{
+  "name": "zeus_n_llm_restart",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        48
+      ],
+      "id": "17671524-aa2c-434e-9af9-c678d5ede538",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose logs -f vllm-qwen3-14B | grep 'Application startup'",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        48
+      ],
+      "id": "6470fd22-39df-4b90-b318-207e9116d24b",
+      "name": "logs",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Arrumar nomes dos serviços e diretorios"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -448
+      ],
+      "id": "edab74ff-2f26-4ef0-9804-4854af48c5fd",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose down vllm-qwen3-14B zeus",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        48
+      ],
+      "id": "24ef8d50-828d-4938-addc-ce822fe15eb2",
+      "name": "down",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose up -d vllm-qwen3-14B zeus",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        48
+      ],
+      "id": "39a615f0-beb1-40ee-8146-a924db6365d2",
+      "name": "up",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "22f2ff9d-a3e2-492d-b9e4-dbb6fcf3df27",
+              "leftValue": "={{ $json.code }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        96,
+        48
+      ],
+      "id": "ce6886d9-9001-4f37-8295-667386420ecc",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "content": "## Verifica logs até achar o 'Application startup'\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        32,
+        -144
+      ],
+      "id": "cce179f7-535e-4c23-90b2-ee9af816173f",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "logs": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "down": {
+      "main": [
+        [
+          {
+            "node": "up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "up": {
+      "main": [
+        [
+          {
+            "node": "logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0ce7a6d9-8e54-45c1-b31a-3ea3643b1405",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f3fd47d9dda0fe32e948b200ee9d1659c0536289b09760ad80c7cb5a76629ac"
+  },
+  "id": "rYUx7wr9GgL6jeAW",
+  "tags": [
+    {
+      "updatedAt": "2025-12-10T14:10:02.765Z",
+      "createdAt": "2025-12-10T14:10:02.765Z",
+      "id": "YPcGJs79VuYp5sGy",
+      "name": "zeus"
+    }
+  ]
+}

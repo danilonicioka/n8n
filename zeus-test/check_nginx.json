@@ -1,0 +1,164 @@
+{
+  "name": "check_nginx",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        48
+      ],
+      "id": "dd3acae1-da27-4677-ad74-1def59c549fc",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose logs -n 10 web",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        48
+      ],
+      "id": "4bb19aa8-e037-4272-9b94-2b37bcc2f56f",
+      "name": "logs",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose restart web",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        48
+      ],
+      "id": "20993891-532c-48e3-bf3b-c209ebfaca44",
+      "name": "restart",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Curl\nO container do n8n não tem curl, por isso que está fazendo ssh para executar o teste"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -144
+      ],
+      "id": "f62f8f67-15fa-45f6-89d1-b5541f1156bf",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "curl -k -o /dev/null -s -w \"%{http_code}\\n\" https://zeus-dev.tjpa.jus.br",
+        "cwd": "/root/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        48
+      ],
+      "id": "4c0263af-6fdd-458d-9a86-48edea198bf3",
+      "name": "curl",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Arrumar nomes dos serviços e diretorios"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        -432
+      ],
+      "id": "a012ff7d-9655-47ef-a93f-209318539f4e",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "restart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "logs": {
+      "main": [
+        []
+      ]
+    },
+    "restart": {
+      "main": [
+        [
+          {
+            "node": "curl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "curl": {
+      "main": [
+        [
+          {
+            "node": "logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d0218177-b2fa-4c80-b7aa-28c656155dd9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f3fd47d9dda0fe32e948b200ee9d1659c0536289b09760ad80c7cb5a76629ac"
+  },
+  "id": "ypi0CdZWEkPM2mLC",
+  "tags": [
+    {
+      "updatedAt": "2025-12-10T14:10:02.765Z",
+      "createdAt": "2025-12-10T14:10:02.765Z",
+      "id": "YPcGJs79VuYp5sGy",
+      "name": "zeus"
+    }
+  ]
+}

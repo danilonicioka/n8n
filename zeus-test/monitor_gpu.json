@@ -1,0 +1,87 @@
+{
+  "name": "monitor_gpu",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -112
+      ],
+      "id": "216e6fcb-5fd8-4234-949d-ea96bfa5ce02",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "content": "## Arrumar nomes dos serviços e diretorios"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        -432
+      ],
+      "id": "b7cea7a8-064e-4021-b8f2-f0e8c7bddcec",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "python3 gpu_monitor.py --watch --interval 5",
+        "cwd": "/root"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -112
+      ],
+      "id": "b748b140-736f-4a84-bd36-677fdbc6785e",
+      "name": "down",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "down": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7d1aff21-4eef-4208-9f3b-d1c1e0bafae5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f3fd47d9dda0fe32e948b200ee9d1659c0536289b09760ad80c7cb5a76629ac"
+  },
+  "id": "TfOSHdjYWNzaNlyz",
+  "tags": [
+    {
+      "updatedAt": "2025-12-10T14:10:02.765Z",
+      "createdAt": "2025-12-10T14:10:02.765Z",
+      "id": "YPcGJs79VuYp5sGy",
+      "name": "zeus"
+    }
+  ]
+}

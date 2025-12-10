@@ -1,0 +1,183 @@
+{
+  "name": "upload_fail",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -80
+      ],
+      "id": "ef3f013d-ca69-43f1-a0b5-4b0b446d7909",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose down",
+        "cwd": "/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -80
+      ],
+      "id": "bdca5244-10e9-4679-9ae8-64dafb46497f",
+      "name": "down",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose ps",
+        "cwd": "/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        -80
+      ],
+      "id": "d2600855-2e2d-4b7e-9724-102792f3b40e",
+      "name": "ps",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose ps --format=\"table {{.Name}}\\t{{.Status}}\\t{{.Ports}}\" | column -t",
+        "cwd": "/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        96,
+        -80
+      ],
+      "id": "e86fa58d-7b26-4dee-818d-5030b83cc06a",
+      "name": "ps1",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker compose up -d",
+        "cwd": "/ollama"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        -80
+      ],
+      "id": "937845db-f260-4ebf-b8f8-805495967c5c",
+      "name": "up",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "JWZiz1Q4wjajRcAW",
+          "name": "SSH Host"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Arrumar nomes dos serviços e diretorios"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -464
+      ],
+      "id": "bb3a14a6-0a57-4833-b334-a0e510f41459",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "ps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ps": {
+      "main": [
+        [
+          {
+            "node": "down",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "down": {
+      "main": [
+        [
+          {
+            "node": "up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "up": {
+      "main": [
+        [
+          {
+            "node": "ps1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ps1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9d826e6a-3b42-4c14-9b37-14d8809387a2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f3fd47d9dda0fe32e948b200ee9d1659c0536289b09760ad80c7cb5a76629ac"
+  },
+  "id": "gC5KxQclMLD81vuR",
+  "tags": [
+    {
+      "updatedAt": "2025-12-10T14:10:02.765Z",
+      "createdAt": "2025-12-10T14:10:02.765Z",
+      "id": "YPcGJs79VuYp5sGy",
+      "name": "zeus"
+    }
+  ]
+}
