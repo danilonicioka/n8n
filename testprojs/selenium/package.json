@@ -1,0 +1,13 @@
+{
+  "name": "selenium-api-service",
+  "version": "1.0.0",
+  "description": "API to run Selenium script",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "selenium-webdriver": "^4.16.0"
+  }
+}
