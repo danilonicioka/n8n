@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web:
+    # Build the image from the Dockerfile in the current directory
+    build: . 
+    # Map port 5000 on your local machine to port 5000 in the container
+    ports:
+      - "5000:5000"
+    # Mount the static/uploads directory from your host machine 
+    # so uploads persist even if the container is restarted or destroyed.
+    volumes:
+      - ./static/uploads:/app/static/uploads
+    # Restart the container if it fails
+    restart: always
+    # Environment variable for Flask's SECRET_KEY
+    environment:
+      - FLASK_ENV=production
+      # IMPORTANT: Change this to a secure, random string for production
+      - SECRET_KEY=your_super_secret_key_from_compose

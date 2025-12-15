@@ -1,0 +1,160 @@
+<!doctype html>
+<title>Scrollable Upload Content</title>
+<style>
+    /* Reset and set base size */
+    html, body {
+        height: 100%;
+        margin: 0;
+        font-family: Arial, sans-serif;
+    }
+    
+    /* Main container using Flexbox to divide the screen */
+    #app-container {
+        display: flex;
+        height: 100vh;
+    }
+
+    /* Fixed Left Panel (Title Only) */
+    #left-panel {
+        width: 150px; /* Smaller fixed width */
+        padding: 20px 0; /* Padding top/bottom only */
+        background-color: #333;
+        color: white;
+        text-align: center;
+        flex-shrink: 0; 
+    }
+    
+    #left-panel h1 {
+        font-size: 1.5em;
+        margin: 0;
+        padding: 10px 0;
+        line-height: 1.2;
+    }
+
+    /* Scrollable Right Content Area (Upload Form + Results) */
+    #right-content {
+        flex-grow: 1; 
+        padding: 20px;
+        overflow-y: auto; /* THIS REMAINS KEY: Enables vertical scrolling only here */
+        background-color: #ffffff;
+    }
+
+    /* Styling for the spacer content */
+    #spacer h2 {
+        color: #007bff;
+        margin-top: 50vh; /* Helps center the message vertically initially */
+        text-align: center;
+    }
+</style>
+
+<div id="app-container">
+    
+    <div id="left-panel">
+        <h1>Video Uploader</h1>
+    </div>
+    
+    <div id="right-content">
+        
+        <h2>Upload Control</h2>
+        <p>Select a video file to begin the instant upload. Scroll down after the timer to see the results!</p>
+        
+        <form id="uploadForm" method="post" enctype="multipart/form-data">
+          <input type="file" name="file" id="videoFile" accept="video/*">
+        </form>
+        
+        <div id="statusMessage" style="margin-top: 20px;"></div>
+
+        <hr style="margin: 30px 0;">
+        
+        <h3>Results Area</h3>
+
+        <div id="spacer" style="display: none; height: 100vh;">
+            <h2>Please wait for the server processing timer to finish...</h2>
+        </div>
+
+        <div id="finalMessage" style="display: none; padding: 20px; border-top: 2px solid #ccc;">
+            </div>
+    </div>
+
+</div>
+
+<script>
+  // Get references
+  const fileInput = document.getElementById('videoFile');
+  const statusMessage = document.getElementById('statusMessage');
+  const uploadForm = document.getElementById('uploadForm');
+  
+  // Element references for the scrollable panel
+  const rightContent = document.getElementById('right-content'); 
+  const spacer = document.getElementById('spacer');
+  const finalMessage = document.getElementById('finalMessage');
+
+  fileInput.addEventListener('change', function() {
+    if (this.files.length === 0) return;
+
+    const file = this.files[0];
+    statusMessage.innerHTML = `<span style="color: blue;">Uploading **${file.name}**...</span>`;
+    
+    // Reset state and scroll results panel to the top
+    finalMessage.style.display = 'none';
+    spacer.style.display = 'none';
+    rightContent.scrollTop = 0; 
+
+    const formData = new FormData(uploadForm);
+
+    fetch('{{ url_for("upload_ajax") }}', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Set the timer duration
+      const timerDuration = 3000; 
+      statusMessage.innerHTML = `<span style="color: green;">Upload complete. Processing timer started (${timerDuration/1000}s)...</span>`;
+
+      setTimeout(() => {
+        
+        // 1. Increase the scrollable area size by showing the spacer
+        spacer.style.display = 'block'; 
+        
+        // 2. Render the final success message at the very bottom
+        finalMessage.style.display = 'block';
+
+        if (data.success) {
+          finalMessage.innerHTML = `<h1>Success!</h1><h3 style="color: green;">${data.message}</h3>`;
+          displayVideo(data.url, data.filename);
+        } else {
+          finalMessage.innerHTML = `<h1 style="color: red;">Failed!</h1><h3 style="color: red;">${data.message}</h3>`;
+        }
+        
+        // 3. Scroll the RIGHT panel all the way to the bottom
+        //rightContent.scrollTop = rightContent.scrollHeight;
+
+        // Update the status message to indicate the timer is done
+        statusMessage.innerHTML = 'Processing complete. Scroll down to see the video.'; 
+
+      }, timerDuration);
+    })
+    .catch(error => {
+      statusMessage.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+      console.error('Fetch error:', error);
+    });
+  });
+
+  // Helper function to display the video
+  function displayVideo(url, filename) {
+    const videoHTML = `
+      <h3>Video Preview: ${filename}</h3>
+      <video width="80%" controls style="max-width: 600px;">
+        <source src="${url}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+    `;
+    finalMessage.innerHTML += videoHTML;
+  }
+</script>

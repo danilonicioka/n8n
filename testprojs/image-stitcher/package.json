@@ -1,0 +1,13 @@
+{
+  "name": "image-stitcher-service",
+  "version": "1.0.0",
+  "description": "API service for stitching vertical image slices using Sharp.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sharp": "^0.33.2"
+  }
+}
