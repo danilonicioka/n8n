@@ -1,24 +1,38 @@
-# Start from a base image that includes Node.js and the necessary browser/driver.
-# The 'selenium/node-chrome' or 'selenium/standalone-chrome' images are ideal.
-# Using 'standalone' for a simpler, all-in-one setup for a single script.
+# Start from a Node.js base image (includes npm)
+FROM node:24.12.0-trixie-slim
 
-FROM selenium/standalone-chrome:latest
-
-# Set the working directory inside the container
+# Set working directory
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json (if any)
-COPY package*.json ./
+# --- 1. Install Chrome Dependencies ---
+# These are the OS-level libraries required for Chrome/Chromium to run headlessly
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    libnss3 \
+    libfontconfig1 \
+    libgconf-2-4 \
+    chromium \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install application dependencies
+# --- 2. Install ChromeDriver ---
+# Get the latest ChromeDriver version compatible with the Chromium installed above
+# NOTE: If your installed 'chromium' is a different version, you may need to adjust this.
+RUN apt-get install -y chromium-driver \
+    && ln -s /usr/lib/chromium/chromedriver /usr/local/bin/chromedriver
+
+# --- 3. Install Node.js Dependencies ---
+COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the application files
+# --- 4. Copy Application Files ---
 COPY . .
 
-# Expose the port where your Express server is listening
+# --- 5. Final Configuration ---
 EXPOSE 3000
+# IMPORTANT: Tell Selenium to use the correct browser binary location
+ENV CHROME_BIN=/usr/bin/chromium
 
-# Command to run the application
-# We use 'npm start', which executes 'node server.js'
+# The new run command
 CMD [ "npm", "start" ]
