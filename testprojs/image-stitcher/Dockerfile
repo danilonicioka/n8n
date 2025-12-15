@@ -1,5 +1,5 @@
 # Use a lightweight Node.js base image
-FROM node:20-slim
+FROM node:24.12.0-trixie-slim
 
 # Set environment variables
 ENV NODE_ENV production
