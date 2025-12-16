@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const { runScript } = require('./selenium-script'); 
 
 const app = express();
-const port = 3000; // Choose a port
+const port = 6000; // Choose a port
 
 // Middleware to parse JSON body
 app.use(bodyParser.json());
