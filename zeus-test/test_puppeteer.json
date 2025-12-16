@@ -1,0 +1,389 @@
+{
+  "name": "test_puppeteer",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        368
+      ],
+      "id": "f717659f-444e-4bb4-9192-bf638ea1ac8b",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "const INITIAL_URL = 'https://zeus.tjpa.jus.br/';\nconst LOGIN_BUTTON_SELECTOR = '#root > div:nth-child(1) > div.withScreencast > div > div > section.stMain.st-emotion-cache-bm2z3a.eht7o1d1 > div.stMainBlockContainer.block-container.st-emotion-cache-mtjnbi.eht7o1d4 > div > div > div > div:nth-child(2) > div > button';\nconst SCROLL_CONTAINER_SELECTOR = '#root > div:nth-child(1) > div.withScreencast > div > div > section.stMain.st-emotion-cache-bm2z3a.eht7o1d1'\nconst SUCCESS_SELECTOR = '#tabs-bui2-tabpanel-0 > div > div > div > div:nth-child(10) > div > div > div > div';\nconst VLL_ERROR_SELECTOR = '#tabs-bui2-tabpanel-0 > div > div > div > div:nth-child(6) > div > div > div > div'\nconst PROCESSING_TIMEOUT_MS = 300000\nconst SUCCESS_MESSAGE = \"Você acabou de economizar\"\nconst USERNAME = 'danilo.nicioka'; \nconst PASSWORD = 'Ad@maz080212'; \nconst USERNAME_SELECTOR = '#username';\nconst PASSWORD_SELECTOR = '#password'; \nconst CONFIRM_LOGIN_BUTTON_SELECTOR = '#kc-login'; \nconst VIDEO_PATH = \"/tmp/zeus/videos/0cb3c98a17ce4ea399d6c512f2938524.cd3c7d78cbea4de6a96a5c796a0773eb.zeusteste.mp4\"; \nconst FILE_UPLOAD_SELECTOR = \"#tabs-bui2-tabpanel-0 > div > div > div > div:nth-child(2) > div > div > section > input[type=file]\";\nconst delay = ms => new Promise(res => setTimeout(res, ms));\nconst DEBUG = true\n\nasync function takeDebugScreenshot(page){\n  // Ensure the required page object is passed\n  if (!page) {\n      throw new Error(\"Puppeteer page object must be provided to takeDebugScreenshot.\");\n  }\n\n  const resultImages = await page.evaluate(async (containerSel) => {\n      const container = document.querySelector(containerSel);\n      if (!container) return [];\n\n      // Get dimensions\n      const scrollHeight = container.scrollHeight;\n      const clientHeight = container.clientHeight; // Visible height\n      \n      // Ensure scrollHeight is valid\n      if (scrollHeight <= clientHeight) {\n          console.log('Content height is less than viewport height. One screenshot needed.');\n          return [{ top: 0 }]; // Only one shot needed\n      }\n      \n      const imagesToCapture = [];\n      let currentScroll = 0;\n      \n      // Loop through all necessary scroll steps\n      while (currentScroll < scrollHeight) {\n          imagesToCapture.push({ top: currentScroll });\n          \n          // Scroll down by one viewport height\n          currentScroll += clientHeight;\n          \n          // Set the new scroll position\n          container.scrollTop = currentScroll;\n          \n          // A small wait is needed here to allow the browser to render before the next screenshot\n          await new Promise(resolve => setTimeout(resolve, 500)); \n      }\n\n      return imagesToCapture; // Returns array of scroll positions\n      \n  }, SCROLL_CONTAINER_SELECTOR);\n\n  if (resultImages.length === 0) {\n      throw new Error(`Failed to capture images. Scroll container not found: ${SCROLL_CONTAINER_SELECTOR}`);\n  }\n\n  const outputItems = [];\n  \n  // Loop through the calculated positions and take the actual screenshots\n  for (let i = 0; i < resultImages.length; i++) {\n      const item = resultImages[i];\n      \n      // Scroll the container to the calculated position (this command is external to the browser context)\n      await page.evaluate((scrollPos, containerSel) => {\n          document.querySelector(containerSel).scrollTop = scrollPos;\n      }, item.top, SCROLL_CONTAINER_SELECTOR);\n      \n      // Delay before taking the screenshot\n      await delay(500); \n\n      // Take the standard viewport screenshot\n      const screenshotBuffer = await page.screenshot({ fullPage: false });\n      const screenshotBase64 = screenshotBuffer.toString('base64');\n\n      outputItems.push({\n          json: {\n              status: 'slice_captured',\n              image_type: 'sliced',\n              slice_number: i + 1,\n              scroll_pos_top: item.top\n          },\n          binary: {\n              imageSlice: {\n                  data: screenshotBase64,\n                  mimeType: 'image/png'\n              }\n          }\n      });\n  }\n  return outputItems;\n}\nasync function findTextScreenshot(page){\n  \n  // Wait until the custom function finds the text in the document body\n  await page.waitForFunction(\n      (message) => document.body.innerText.includes(message),\n      { timeout: PROCESSING_TIMEOUT_MS },\n      SUCCESS_MESSAGE // Argument passed to the function above\n  );\n  \n  // 3. FIND THE ELEMENT CONTAINING THE TEXT AND GET COORDINATES (REVISED)\n  console.log('5a. Text found. Finding element and scrolling its container into view...');\n  \n  const finalClipData = await page.evaluate(async (message, containerSel) => {\n    \n    const container = document.querySelector(containerSel);\n    if (!container) return null;\n\n    // 1. Use XPath to find the element containing the exact text.\n    // This XPath finds any element whose *own* text content contains the message.\n    const xpathExpression = `//*/text()[contains(normalize-space(.), \"${message}\")]/parent::*`;\n    \n    // Evaluate XPath expression to get a Node iterator (works well in page.evaluate)\n    const iterator = document.evaluate(\n        xpathExpression,\n        document,\n        null,\n        XPathResult.ORDERED_NODE_ITERATOR_TYPE,\n        null\n    );\n    \n    // Get the first matching element\n    let textWrapperElement = iterator.iterateNext();\n\n    if (!textWrapperElement) {\n        // Fallback or failure if XPath didn't find the text\n        return null;\n    }\n\n    // 2. Identify the stable element for scrolling and cropping.\n    // We assume the stable container is one of the parents of the text wrapper.\n    let successElement = textWrapperElement;\n    let iterations = 0;\n    const MAX_DEPTH = 11; // Increased depth search\n\n    // Traverse up until we find a block-level element that is a child of the scroll container\n    while (iterations < MAX_DEPTH && successElement.parentElement) {\n        // Stop if we hit the scroll container itself (don't want to measure the whole thing)\n        if (successElement.parentElement === container) {\n            break;\n        }\n\n        // Move up to the next parent\n        successElement = successElement.parentElement;\n        iterations++;\n    }\n\n    // 3. Scroll the container so the stable element is at the very top of the visible area\n    container.scrollTop = successElement.offsetTop; \n    \n    // 4. Get coordinates relative to the BROWSER VIEWPORT\n    const elementRect = successElement.getBoundingClientRect();\n    const containerRect = container.getBoundingClientRect();\n    \n    // 5. Return the data needed for cropping\n    return { \n        x: containerRect.left, \n        y: containerRect.top, \n        w: containerRect.width, \n        h: elementRect.height \n    };\n\n  }, SUCCESS_MESSAGE, SCROLL_CONTAINER_SELECTOR); // Pass both message and container selector\n  \n  if (!finalClipData) {\n      throw new Error(\"Failed to calculate clipping coordinates after message was found.\");\n  }\n  \n  // 4. TAKE STANDARD VIEWPORT SCREENSHOT\n  console.log('6. Taking standard viewport screenshot (SUCCESS)...');\n  const screenshotBuffer = await page.screenshot({ fullPage: false }); \n  const screenshotBase64 = screenshotBuffer.toString('base64');\n  \n  // 5. RETURN SUCCESS DATA\n  return [\n      {\n          json: {\n              status: 'success',\n              image_type: 'cropped',\n              clip_x: finalClipData.x, \n              clip_y: finalClipData.y, \n              clip_w: finalClipData.w, \n              clip_h: finalClipData.h \n          },\n          binary: {\n              data: {\n                  data: screenshotBase64,\n                  mimeType: 'image/png'\n              }\n          }\n      }\n  ];\n}\n\n// Navigate to the initial $page\nawait $page.goto(INITIAL_URL, { waitUntil: 'domcontentloaded' });\n\n// Wait for the button to be present and clickable\ntry{\n  await $page.waitForSelector(LOGIN_BUTTON_SELECTOR, { visible: true, timeout: 5000 });\n} catch(error) {\n  throw new Error(`Initial login button not working`);\n}\n\n// Perform the click and wait for navigation\n// The Promise.all structure is the standard Puppeteer way to handle \n// an action (click) that triggers an asynchronous event (navigation).\nawait Promise.all([\n    // A. Wait for the 'load' event of the *new* $page after navigation\n    $page.waitForNavigation({ waitUntil: 'load' }), \n    \n    // B. Perform the click action\n    $page.click(LOGIN_BUTTON_SELECTOR)\n]);\n\n// Wait for the form fields to be visible\nawait $page.waitForSelector(USERNAME_SELECTOR, { visible: true, timeout: 5000 });\nawait $page.waitForSelector(PASSWORD_SELECTOR, { visible: true, timeout: 5000 });\nawait $page.waitForSelector(CONFIRM_LOGIN_BUTTON_SELECTOR, { visible: true, timeout: 5000 });\n\n// Type the credentials into the fields\nawait $page.type(USERNAME_SELECTOR, USERNAME, { delay: 50 }); // Added a small delay to simulate human typing\nawait $page.type(PASSWORD_SELECTOR, PASSWORD, { delay: 50 });\n\n// Click the login button and wait for the navigation/redirect to the dashboard\nawait Promise.all([\n    // Wait for navigation after the click, assuming successful login redirects to a new $page\n    $page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }), \n    \n    // Perform the click action\n    $page.click(CONFIRM_LOGIN_BUTTON_SELECTOR)\n]);\n\nconst fileElement = await $page.waitForSelector(FILE_UPLOAD_SELECTOR, { visible: true, timeout: 5000 });\n\n// Use fileElement.uploadFile to attach the file, which triggers the automatic upload\nawait fileElement.uploadFile(VIDEO_PATH);\n\nif (DEBUG){\n  await delay(PROCESSING_TIMEOUT_MS)\n  return await takeDebugScreenshot($page)\n}\n\ntry{\n  return await findTextScreenshot($page)\n} catch (error) {\n  return await takeDebugScreenshot($page)\n}",
+        "options": {
+          "browserWSEndpoint": "http://192.168.100.164:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        368
+      ],
+      "id": "53bf0ee1-8a0c-4ff7-abbf-c5d67a81567e",
+      "name": "zeus"
+    },
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "const videopageurl = \"http://192.168.100.164:8080/view?m=WiUumgMUx\"\n\n// 1. Define the internal container path\nconst downloadPath = '/tmp/zeus/videos'; \n\n// 2. Crucial: Set the Download Behavior to automatically save to the container path\nawait $page._client().send('Page.setDownloadBehavior', {\n  behavior: 'allow',\n  downloadPath: downloadPath, // Path inside the Browserless container\n});\n\nawait $page.goto(videopageurl, { waitUntil: 'networkidle0' });\n\n// 3. Automate the Clicks\nconst downloadButtonSelector = '.video-downloads > button:nth-child(1)'; \nawait $page.waitForSelector(downloadButtonSelector);\nawait $page.click(downloadButtonSelector);\n\n// Wait for the format list to appear\nawait $page.waitForSelector('.popup-main > div:nth-child(1) > nav:nth-child(1)'); \n\n// Click the desired format\nconst formatSelector = '.popup-main > div:nth-child(1) > nav:nth-child(1) > ul:nth-child(1) > li:nth-child(4)'; \nawait $page.click(formatSelector);\n\n// 4. Wait for the download to complete (see note below)\nawait new Promise(resolve => setTimeout(resolve, 5000)); \n\n// Return the path or the filenames if known, so n8n can process it next\nreturn [\n  { \n    json: { \n      download_path: downloadPath,\n      message: 'Download complete in the Browserless container.',\n    }\n  }\n];",
+        "options": {
+          "browserWSEndpoint": "http://192.168.100.164:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        448
+      ],
+      "id": "bb04585f-ff72-4b32-8a21-a7c3addb5bd6",
+      "name": "video_download"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker exec browserless ls -t /tmp/zeus/videos | head -n1"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        368
+      ],
+      "id": "5c3aa0c1-3c00-4cdf-ba17-46b717db3567",
+      "name": "downloadedfilename",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "OudF3rsnasZbvo5u",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "081084ce-9ea0-4e70-b8c1-e48810deefab",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "zeusteste.mp4",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -640,
+        368
+      ],
+      "id": "173036d9-7b4c-45d8-9b69-99f7f3c56ccc",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "content": "## Check video url and file name"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -256,
+        -336
+      ],
+      "typeVersion": 1,
+      "id": "09c77c42-0143-432f-85a5-38fd97f448b8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This function takes all items outputted by the previous node (the Puppeteer node)\nconst inputItems = $input.all();\nconst slices = [];\nconst binaryDataKey = 'imageSlice'; // The key used in your Puppeteer output's binary field\n\nif (inputItems.length === 0) {\n    // Safety check in case no slices were returned\n    return [{ json: { error: 'No image slices received from Puppeteer node.' } }];\n}\n\n// 1. Iterate over all incoming n8n items (one for each slice)\nfor (const item of inputItems) {\n    if (item.binary && item.binary[binaryDataKey]) {\n        // 2. Extract the Base64 string from the binary property's data field.\n        // n8n stores the Base64 data in the `data` sub-property of the binary object.\n        const base64String = item.binary[binaryDataKey].data;\n        slices.push(base64String);\n    }\n}\n\n// 3. Return a single n8n item containing the final JSON structure\nreturn [{\n    json: {\n        slices: slices\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        448
+      ],
+      "id": "756ad097-a8fb-4fe2-b308-b51908f13719",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.100.164:4000/stitch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        480,
+        448
+      ],
+      "id": "182db477-4a5a-43a1-b44d-d3381cff5619",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f2ce9137-c03c-466f-b7f5-3646c128f1c4",
+              "leftValue": "={{ $json.image_type }}",
+              "rightValue": "cropped",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        368
+      ],
+      "id": "48b5fb03-dc99-4bfa-9be8-00de9a7b7f53",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/zeus/results/screenshot.png",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        704,
+        368
+      ],
+      "id": "7e5c6e14-0f2c-4f19-8f78-5f272ef53898",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "// **!!! IMPORTANT !!!**\n// Replace these with the actual URL and Selector for your site\nconst initialUrl = 'http://192.168.100.164:5000/'; \n// --- Configuration ---\n// !!! UPDATE THIS SELECTOR !!!\nconst SUCCESS_SELECTOR = '#finalMessage > h3:nth-child(2)';\nconst TARGET_MESSAGE = \"uploaded successfully\"\nconst delay = ms => new Promise(res => setTimeout(res, ms));\nconst TIMEOUT_MS = 20000\n\nconst SCROLL_CONTAINER_SELECTOR = '#right-content'; // <-- MUST BE CORRECT!\n\nconst DEBUG_SCREENSHOT_TYPES = false\n    \nlet finalClipData = null; // Will hold x, y, w, h\nlet screenshotBuffer = null;\n\n// screenshot debug function\nasync function takeDebugScreenshot(page){\n  // Ensure the required page object is passed\n  if (!page) {\n      throw new Error(\"Puppeteer page object must be provided to takeDebugScreenshot.\");\n  }\n  console.log('--- Starting Manual Multi-Screenshot Capture ---');\n\n  const resultImages = await page.evaluate(async (containerSel) => {\n      const container = document.querySelector(containerSel);\n      if (!container) return [];\n\n      // 1. Get dimensions\n      const scrollHeight = container.scrollHeight;\n      const clientHeight = container.clientHeight; // Visible height\n      \n      // Ensure scrollHeight is valid\n      if (scrollHeight <= clientHeight) {\n          console.log('Content height is less than viewport height. One screenshot needed.');\n          return [{ top: 0 }]; // Only one shot needed\n      }\n      \n      const imagesToCapture = [];\n      let currentScroll = 0;\n      \n      // 2. Loop through all necessary scroll steps\n      while (currentScroll < scrollHeight) {\n          imagesToCapture.push({ top: currentScroll });\n          \n          // Scroll down by one viewport height\n          currentScroll += clientHeight;\n          \n          // Set the new scroll position\n          container.scrollTop = currentScroll;\n          \n          // A small wait is needed here to allow the browser to render before the next screenshot\n          await new Promise(resolve => setTimeout(resolve, 500)); \n      }\n\n      return imagesToCapture; // Returns array of scroll positions\n      \n  }, SCROLL_CONTAINER_SELECTOR);\n\n  if (resultImages.length === 0) {\n      throw new Error(`Failed to capture images. Scroll container not found: ${SCROLL_CONTAINER_SELECTOR}`);\n  }\n\n  const outputItems = [];\n  \n  // 3. Loop through the calculated positions and take the actual screenshots\n  for (let i = 0; i < resultImages.length; i++) {\n      const item = resultImages[i];\n      \n      // Scroll the container to the calculated position (this command is external to the browser context)\n      await page.evaluate((scrollPos, containerSel) => {\n          document.querySelector(containerSel).scrollTop = scrollPos;\n      }, item.top, SCROLL_CONTAINER_SELECTOR);\n      \n      // Delay before taking the screenshot\n      await delay(500); \n\n      // Take the standard viewport screenshot\n      screenshotBuffer = await page.screenshot({ fullPage: false });\n      const screenshotBase64 = screenshotBuffer.toString('base64');\n\n      outputItems.push({\n          json: {\n              status: 'slice_captured',\n              image_type: 'sliced',\n              slice_number: i + 1,\n              scroll_pos_top: item.top\n          },\n          binary: {\n              imageSlice: {\n                  data: screenshotBase64,\n                  mimeType: 'image/png'\n              }\n          }\n      });\n  }\n  return outputItems;\n}\n\n// 1. Navigate to the initial $page\nawait $page.goto(initialUrl, { waitUntil: 'domcontentloaded' });\n\n// The absolute path to the file is retrieved from the previous 'Write Binary File' node.\n// This assumes the Write Binary File node returns its output in an item named 'filePath'.\nconst filePath = \"/tmp/zeus/videos/0cb3c98a17ce4ea399d6c512f2938524.cd3c7d78cbea4de6a96a5c796a0773eb.zeusteste.mp4\"; \n\n// *** REPLACE THESE VALUES ***\nconst fileInputSelector = \"#videoFile\"; // e.g., '#file-upload'\n\nconst fileElement = await $page.waitForSelector(fileInputSelector, { visible: true, timeout: 5000 });\nconsole.log(\"File input field found.\");\n\n// 3. Use fileElement.uploadFile to attach the file, which triggers the automatic upload\nawait fileElement.uploadFile(filePath);\nconsole.log(`File attached from dynamic path: ${filePath}. Automatic upload started.`);\n\nconsole.log('Starting monitoring for video processing completion...');\n\nif (DEBUG_SCREENSHOT_TYPES){\n  await delay(5000)\n  return await takeDebugScreenshot($page)\n}\n\ntry {\n  // --- STEP 2: WAIT FOR TARGET MESSAGE (Primary Goal) ---\n  console.log(`5. Waiting for target message: \"${TARGET_MESSAGE}\"...`);\n  \n  // Wait until the custom function finds the text in the document body\n  await $page.waitForFunction(\n      (message) => document.body.innerText.includes(message),\n      { timeout: TIMEOUT_MS },\n      TARGET_MESSAGE // Argument passed to the function above\n  );\n  \n  // 3. FIND THE ELEMENT CONTAINING THE TEXT AND GET COORDINATES (REVISED)\n  console.log('5a. Text found. Finding element and scrolling its container into view...');\n  \n  finalClipData = await $page.evaluate(async (message, containerSel) => {\n    \n    const container = document.querySelector(containerSel);\n    if (!container) return null;\n\n    // 1. Use XPath to find the element containing the exact text.\n    // This XPath finds any element whose *own* text content contains the message.\n    const xpathExpression = `//*/text()[contains(normalize-space(.), \"${message}\")]/parent::*`;\n    \n    // Evaluate XPath expression to get a Node iterator (works well in page.evaluate)\n    const iterator = document.evaluate(\n        xpathExpression,\n        document,\n        null,\n        XPathResult.ORDERED_NODE_ITERATOR_TYPE,\n        null\n    );\n    \n    // Get the first matching element\n    let textWrapperElement = iterator.iterateNext();\n\n    if (!textWrapperElement) {\n        // Fallback or failure if XPath didn't find the text\n        return null;\n    }\n\n    // 2. Identify the stable element for scrolling and cropping.\n    // We assume the stable container is one of the parents of the text wrapper.\n    let successElement = textWrapperElement;\n    let iterations = 0;\n    const MAX_DEPTH = 6; // Increased depth search\n\n    // Traverse up until we find a block-level element that is a child of the scroll container\n    while (iterations < MAX_DEPTH && successElement.parentElement) {\n        // Stop if we hit the scroll container itself (don't want to measure the whole thing)\n        if (successElement.parentElement === container) {\n            break;\n        }\n\n        // Move up to the next parent\n        successElement = successElement.parentElement;\n        iterations++;\n    }\n\n    // 3. Scroll the container so the stable element is at the very top of the visible area\n    container.scrollTop = successElement.offsetTop; \n    \n    // 4. Get coordinates relative to the BROWSER VIEWPORT\n    const elementRect = successElement.getBoundingClientRect();\n    const containerRect = container.getBoundingClientRect();\n    \n    // 5. Return the data needed for cropping\n    return { \n        x: containerRect.left, \n        y: containerRect.top, \n        w: containerRect.width, \n        h: elementRect.height \n    };\n\n  }, TARGET_MESSAGE, SCROLL_CONTAINER_SELECTOR); // Pass both message and container selector\n  \n  if (!finalClipData) {\n      throw new Error(\"Failed to calculate clipping coordinates after message was found.\");\n  }\n  \n  // 4. TAKE STANDARD VIEWPORT SCREENSHOT\n  console.log('6. Taking standard viewport screenshot (SUCCESS)...');\n  screenshotBuffer = await $page.screenshot({ fullPage: false }); \n  const screenshotBase64 = screenshotBuffer.toString('base64');\n  \n  // 5. RETURN SUCCESS DATA\n  return [\n      {\n          json: {\n              status: 'success',\n              image_type: 'cropped',\n              clip_x: finalClipData.x, \n              clip_y: finalClipData.y, \n              clip_w: finalClipData.w, \n              clip_h: finalClipData.h \n          },\n          binary: {\n              data: {\n                  data: screenshotBase64,\n                  mimeType: 'image/png'\n              }\n          }\n      }\n  ];\n} catch (error) {\n  return await takeDebugScreenshot($page)\n}",
+        "options": {
+          "browserWSEndpoint": "http://192.168.100.164:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        -1088,
+        -80
+      ],
+      "id": "9dfe2473-ecd8-4899-bd16-08d5d0fe5690",
+      "name": "screenshotest_withtextsearch"
+    },
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "// **!!! IMPORTANT !!!**\n// Replace these with the actual URL and Selector for your site\nconst initialUrl = 'https://www.npmjs.com/package/n8n-nodes-puppeteer'; \n\n// 1. Navigate to the initial $page\nawait $page.goto(initialUrl, { waitUntil: 'domcontentloaded' });\n\nconst screenshotPath = '/tmp/zeus/results/screenshot.png'; // The absolute path where the image will be saved on the n8n host/container\n// **************************\n\nconst SUCCESS_SELECTOR = 'div.markdown-heading:nth-child(56) > h2:nth-child(1)'\n\nconst TIMEOUT_MS = 1000\n\nconst delay = ms => new Promise(res => setTimeout(res, ms)); \n    \n// ... (Your other variables, LOGIN and UPLOAD code - Steps A and B) ...\n\n// ... (Your other variables) ...\nconst SCROLL_CONTAINER_SELECTOR = '#right-content'; // <-- MUST BE CORRECT!\nlet finalClipData = null; // Will hold x, y, w, h\nlet screenshotBuffer = null;\n\n// C. WAIT FOR PROCESSING, SCROLL TO TOP OF VIEWPORT, AND GET COORDINATES\nconsole.log(`5. Waiting for processing to complete...`);\nawait page.waitForSelector(SUCCESS_SELECTOR, { visible: true, timeout: TIMEOUT_MS });\nawait delay(500);\n\n// 1. CRITICAL: Scroll the element so it appears at the top of the SCROLL CONTAINER viewport\nconsole.log('5a. Scrolling element to top of visible area...');\n\nfinalClipData = await page.evaluate((successSel, containerSel) => {\n    const container = document.querySelector(containerSel);\n    const successElement = document.querySelector(successSel);\n    \n    if (!container || !successElement) return null;\n    \n    // --- THIS IS THE KEY SCROLL ACTION ---\n    // Scroll the container so the element is at the very top of the container's visible area\n    container.scrollTop = successElement.offsetTop; \n    \n    // Wait for scroll to settle (not strictly needed in evaluate but good habit)\n    \n    // Get coordinates relative to the BROWSER VIEWPORT (since we are taking a standard screenshot)\n    const elementRect = successElement.getBoundingClientRect();\n    const containerRect = container.getBoundingClientRect();\n    \n    // Return the data needed for cropping\n    return { \n        // X: The left edge of the container (relative to browser viewport)\n        x: containerRect.left, \n        // Y: The top edge of the container (relative to browser viewport)\n        y: containerRect.top, \n        // Width: The width of the container\n        w: containerRect.width, \n        // Height: The height of the success message element\n        h: elementRect.height \n    };\n}, SUCCESS_SELECTOR, SCROLL_CONTAINER_SELECTOR);\n\nif (!finalClipData) {\n    throw new Error(\"Failed to get final coordinates for clipping.\");\n}\n\n// D. TAKE A STANDARD VIEWPORT SCREENSHOT\nconsole.log('6. Taking standard viewport screenshot...');\n\n// Use fullPage: false (or omit it) to take a standard screenshot of the current visible area.\nscreenshotBuffer = await page.screenshot({ fullPage: false }); \nconst screenshotBase64 = screenshotBuffer.toString('base64');\n\nconsole.log('7. Returning success state and data...');\n\n// NOW ALL VARIABLES ARE IN SCOPE AND ACCESSIBLE\nreturn [\n    {\n        json: {\n            status: 'success',\n            // Data for the Edit Image node\n            clip_x: finalClipData.x, \n            clip_y: finalClipData.y, \n            clip_w: finalClipData.w, \n            clip_h: finalClipData.h \n        },\n        binary: {\n            screenshot: {\n                data: screenshotBase64,\n                mimeType: 'image/png'\n            }\n        }\n    }\n];",
+        "options": {
+          "browserWSEndpoint": "http://192.168.100.164:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        -1088,
+        -304
+      ],
+      "id": "e0d1a453-3d38-4f67-bb7b-d3d39c3f9391",
+      "name": "screenshotest_withselector"
+    },
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "// **!!! IMPORTANT !!!**\n// Replace these with the actual URL and Selector for your site\nconst initialUrl = 'http://192.168.100.164:8080/accounts/login/?next=/upload';\n// 1. Navigate to the initial page\nawait $page.goto(initialUrl, { waitUntil: 'domcontentloaded' });\n\n// *** REPLACE THESE VALUES ***\n// IMPORTANT: Use n8n variables like items[0].json.username instead of hardcoded text\nconst USERNAME = 'danilo.nicioka'; \nconst PASSWORD = 'Ad@maz080212'; \n\n// CSS Selectors for the form elements\nconst usernameSelector = '#id_login'; // e.g., '#username' or 'input[name=\"user\"]'\nconst passwordSelector = '#id_password'; // e.g., '#password' or 'input[name=\"pass\"]'\nconst loginButtonSelector = 'body > div.page-main-wrap > div > div.page-main-inner > div > div > form > button';          // e.g., '#login-btn' or 'button[type=\"submit\"]'\n// **************************\n\n// 2. Wait for the form fields to be visible\nawait $page.waitForSelector(usernameSelector, { visible: true, timeout: 5000 });\nawait $page.waitForSelector(passwordSelector, { visible: true, timeout: 5000 });\nawait $page.waitForSelector(loginButtonSelector, { visible: true, timeout: 5000 });\nconsole.log(\"All form elements are visible.\");\n\n// 3. Type the credentials into the fields\nawait $page.type(usernameSelector, USERNAME, { delay: 50 }); // Added a small delay to simulate human typing\nawait $page.type(passwordSelector, PASSWORD, { delay: 50 });\nconsole.log(\"Credentials entered.\");\n\n// 4. Click the login button and wait for the navigation/redirect to the dashboard\nconst [loginResponse] = await Promise.all([\n    // Wait for navigation after the click, assuming successful login redirects to a new page\n    $page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }), \n    \n    // Perform the click action\n    $page.click(loginButtonSelector)\n]);\n\n// 5. Get the final URL and check success\nconst homeloggedUrl = $page.url();\nconst loginSuccess = homeloggedUrl !== initialUrl;\n\nconsole.log(loginSuccess)\n\n// The absolute path to the file is retrieved from the previous 'Write Binary File' node.\n// This assumes the Write Binary File node returns its output in an item named 'filePath'.\nconst filePath = \"/tmp/downloads/cd3c7d78cbea4de6a96a5c796a0773eb.zeusteste.mp4\"; \n\n// *** REPLACE THESE VALUES ***\nconst fileInputSelector = \"body > div.page-main-wrap > div.page-main > div.page-main-inner > div > div.media-uploader > div > div.media-uploader-bottom-left-wrap > div > div > div > div > span.browse-files-btn-wrap > span > input[type=file]\"; // e.g., '#file-upload'\nconst uploadConfirmationSelector = 'body > div.page-main-wrap > div > div.page-main-inner > div > div.media-uploader > div > div.media-uploader-bottom-right-wrap > ul > li > div > div.media-upload-item-details > div.media-upload-item-top-actions > a'; // e.g., '.upload-status-success', or '#uploaded-filename'\n// **************************\n\nconst fileElement = await $page.waitForSelector(fileInputSelector, { visible: true, timeout: 5000 });\nconsole.log(\"File input field found.\");\n\n// 2. Wait for the file input field to be visible\n//const fileElement = await $page.waitForSelector(fileInputSelector, { visible: true, timeout: 5000 });\n//console.log(\"File input field found.\");\n\n// 3. Use page.uploadFile to attach the file, which triggers the automatic upload\nconst uploadresult = await fileElement.uploadFile(filePath);\nconsole.log(`File attached from dynamic path: ${filePath}. Automatic upload started.`);\n\n// --- Crucial Step: Wait for the site to confirm the upload ---\n// Since there's no navigation, we wait for a specific element to appear \n// that indicates success (e.g., a green checkmark, the filename in a list, etc.).\ntry {\n    await $page.waitForSelector(uploadConfirmationSelector, { \n        visible: true, \n        timeout: 30000 // Give it a long timeout for the file to transfer\n    });\n    console.log(\"Upload success indicator appeared on the page.\");\n    var uploadSuccess = true;\n\n} catch (error) {\n    console.error(`Timeout waiting for upload confirmation element: ${uploadConfirmationSelector}`);\n    var uploadSuccess = false;\n}\n\n// 4. Get the final state (no navigation, so URL is the same)\nconst finalUrl = $page.url();\n\n// 5. Return the result back to n8n\nreturn [{\n    json: {\n        fileUploaded: filePath,\n        finalUrl: finalUrl,\n        uploadSuccess: uploadSuccess,\n        ...$json\n    }\n}]; ",
+        "options": {
+          "browserWSEndpoint": "http://192.168.100.164:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        -1088,
+        -528
+      ],
+      "id": "cd8a748b-fbf8-4617-b31a-f893a9ab2e32",
+      "name": "test_video_upload_to_mediacms"
+    },
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "// **!!! IMPORTANT !!!**\n// Replace these with the actual URL and Selector for your site\nconst initialUrl = 'http://192.168.100.164:5000/'; \n// --- Configuration ---\n// !!! UPDATE THIS SELECTOR !!!\nconst SUCCESS_SELECTOR = '#finalMessage > h3:nth-child(2)';\nconst TARGET_MESSAGE = \"uploaded successfully\"\nconst delay = ms => new Promise(res => setTimeout(res, ms));\nconst TIMEOUT_MS = 20000\n\nconst SCROLL_CONTAINER_SELECTOR = '#right-content'; // <-- MUST BE CORRECT!\n\nconst DEBUG_SCREENSHOT_TYPES = false\n    \nlet finalClipData = null; // Will hold x, y, w, h\nlet screenshotBuffer = null;\n\n// screenshot debug function\nasync function takeDebugScreenshot(page){\n  // Ensure the required page object is passed\n  if (!page) {\n      throw new Error(\"Puppeteer page object must be provided to takeDebugScreenshot.\");\n  }\n  console.log('--- Starting Manual Multi-Screenshot Capture ---');\n\n  const resultImages = await page.evaluate(async (containerSel) => {\n      const container = document.querySelector(containerSel);\n      if (!container) return [];\n\n      // 1. Get dimensions\n      const scrollHeight = container.scrollHeight;\n      const clientHeight = container.clientHeight; // Visible height\n      \n      // Ensure scrollHeight is valid\n      if (scrollHeight <= clientHeight) {\n          console.log('Content height is less than viewport height. One screenshot needed.');\n          return [{ top: 0 }]; // Only one shot needed\n      }\n      \n      const imagesToCapture = [];\n      let currentScroll = 0;\n      \n      // 2. Loop through all necessary scroll steps\n      while (currentScroll < scrollHeight) {\n          imagesToCapture.push({ top: currentScroll });\n          \n          // Scroll down by one viewport height\n          currentScroll += clientHeight;\n          \n          // Set the new scroll position\n          container.scrollTop = currentScroll;\n          \n          // A small wait is needed here to allow the browser to render before the next screenshot\n          await new Promise(resolve => setTimeout(resolve, 500)); \n      }\n\n      return imagesToCapture; // Returns array of scroll positions\n      \n  }, SCROLL_CONTAINER_SELECTOR);\n\n  if (resultImages.length === 0) {\n      throw new Error(`Failed to capture images. Scroll container not found: ${SCROLL_CONTAINER_SELECTOR}`);\n  }\n\n  const outputItems = [];\n  \n  // 3. Loop through the calculated positions and take the actual screenshots\n  for (let i = 0; i < resultImages.length; i++) {\n      const item = resultImages[i];\n      \n      // Scroll the container to the calculated position (this command is external to the browser context)\n      await page.evaluate((scrollPos, containerSel) => {\n          document.querySelector(containerSel).scrollTop = scrollPos;\n      }, item.top, SCROLL_CONTAINER_SELECTOR);\n      \n      // Delay before taking the screenshot\n      await delay(500); \n\n      // Take the standard viewport screenshot\n      screenshotBuffer = await page.screenshot({ fullPage: false });\n      const screenshotBase64 = screenshotBuffer.toString('base64');\n\n      outputItems.push({\n          json: {\n              status: 'slice_captured',\n              image_type: 'sliced',\n              slice_number: i + 1,\n              scroll_pos_top: item.top\n          },\n          binary: {\n              imageSlice: {\n                  data: screenshotBase64,\n                  mimeType: 'image/png'\n              }\n          }\n      });\n  }\n  return outputItems;\n}\nasync function findElementScreenshot(page){\n    // --- STEP 2: WAIT FOR TARGET MESSAGE (Primary Goal) ---\n  console.log(`5. Waiting for target message: \"${TARGET_MESSAGE}\"...`);\n  \n  // Wait until the custom function finds the text in the document body\n  await page.waitForFunction(\n      (message) => document.body.innerText.includes(message),\n      { timeout: TIMEOUT_MS },\n      TARGET_MESSAGE // Argument passed to the function above\n  );\n  \n  // 3. FIND THE ELEMENT CONTAINING THE TEXT AND GET COORDINATES (REVISED)\n  console.log('5a. Text found. Finding element and scrolling its container into view...');\n  \n  finalClipData = await page.evaluate(async (message, containerSel) => {\n    \n    const container = document.querySelector(containerSel);\n    if (!container) return null;\n\n    // 1. Use XPath to find the element containing the exact text.\n    // This XPath finds any element whose *own* text content contains the message.\n    const xpathExpression = `//*/text()[contains(normalize-space(.), \"${message}\")]/parent::*`;\n    \n    // Evaluate XPath expression to get a Node iterator (works well in page.evaluate)\n    const iterator = document.evaluate(\n        xpathExpression,\n        document,\n        null,\n        XPathResult.ORDERED_NODE_ITERATOR_TYPE,\n        null\n    );\n    \n    // Get the first matching element\n    let textWrapperElement = iterator.iterateNext();\n\n    if (!textWrapperElement) {\n        // Fallback or failure if XPath didn't find the text\n        return null;\n    }\n\n    // 2. Identify the stable element for scrolling and cropping.\n    // We assume the stable container is one of the parents of the text wrapper.\n    let successElement = textWrapperElement;\n    let iterations = 0;\n    const MAX_DEPTH = 6; // Increased depth search\n\n    // Traverse up until we find a block-level element that is a child of the scroll container\n    while (iterations < MAX_DEPTH && successElement.parentElement) {\n        // Stop if we hit the scroll container itself (don't want to measure the whole thing)\n        if (successElement.parentElement === container) {\n            break;\n        }\n\n        // Move up to the next parent\n        successElement = successElement.parentElement;\n        iterations++;\n    }\n\n    // 3. Scroll the container so the stable element is at the very top of the visible area\n    container.scrollTop = successElement.offsetTop; \n    \n    // 4. Get coordinates relative to the BROWSER VIEWPORT\n    const elementRect = successElement.getBoundingClientRect();\n    const containerRect = container.getBoundingClientRect();\n    \n    // 5. Return the data needed for cropping\n    return { \n        x: containerRect.left, \n        y: containerRect.top, \n        w: containerRect.width, \n        h: elementRect.height \n    };\n\n  }, TARGET_MESSAGE, SCROLL_CONTAINER_SELECTOR); // Pass both message and container selector\n  \n  if (!finalClipData) {\n      throw new Error(\"Failed to calculate clipping coordinates after message was found.\");\n  }\n  \n  // 4. TAKE STANDARD VIEWPORT SCREENSHOT\n  console.log('6. Taking standard viewport screenshot (SUCCESS)...');\n  screenshotBuffer = await page.screenshot({ fullPage: false }); \n  const screenshotBase64 = screenshotBuffer.toString('base64');\n  \n  // 5. RETURN SUCCESS DATA\n  return [\n      {\n          json: {\n              status: 'success',\n              image_type: 'cropped',\n              clip_x: finalClipData.x, \n              clip_y: finalClipData.y, \n              clip_w: finalClipData.w, \n              clip_h: finalClipData.h \n          },\n          binary: {\n              data: {\n                  data: screenshotBase64,\n                  mimeType: 'image/png'\n              }\n          }\n      }\n  ];\n}\n\n// 1. Navigate to the initial $page\nawait $page.goto(initialUrl, { waitUntil: 'domcontentloaded' });\n\n// The absolute path to the file is retrieved from the previous 'Write Binary File' node.\n// This assumes the Write Binary File node returns its output in an item named 'filePath'.\nconst filePath = \"/tmp/zeus/videos/0cb3c98a17ce4ea399d6c512f2938524.cd3c7d78cbea4de6a96a5c796a0773eb.zeusteste.mp4\"; \n\n// *** REPLACE THESE VALUES ***\nconst fileInputSelector = \"#videoFile\"; // e.g., '#file-upload'\n\nconst fileElement = await $page.waitForSelector(fileInputSelector, { visible: true, timeout: 5000 });\nconsole.log(\"File input field found.\");\n\n// 3. Use fileElement.uploadFile to attach the file, which triggers the automatic upload\nawait fileElement.uploadFile(filePath);\nconsole.log(`File attached from dynamic path: ${filePath}. Automatic upload started.`);\n\nconsole.log('Starting monitoring for video processing completion...');\n\nif (DEBUG_SCREENSHOT_TYPES){\n  await delay(5000)\n  return await takeDebugScreenshot($page)\n}\n\ntry {\n  return await findElementScreenshot($page)\n} catch (error) {\n  return await takeDebugScreenshot($page)\n}",
+        "options": {
+          "browserWSEndpoint": "http://192.168.100.164:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        -1088,
+        144
+      ],
+      "id": "4e662ad1-6796-4b28-b0d5-ba9ac1b780b0",
+      "name": "screenshotest_withtextsearch1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "downloadedfilename",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "video_download": {
+      "main": [
+        [
+          {
+            "node": "zeus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "downloadedfilename": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "zeus",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "video_download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "zeus": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "screenshotest_withtextsearch": {
+      "main": [
+        []
+      ]
+    },
+    "screenshotest_withselector": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "660d19ff-0e76-435d-902c-f29a17ee2351",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd3fb0bae0d9ef75dfef3d294ee11799aa32a788bbac584166822da613cc631e"
+  },
+  "id": "38N84pdcfYez8AKY",
+  "tags": []
+}

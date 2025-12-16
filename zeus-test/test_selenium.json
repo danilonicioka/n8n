@@ -1,0 +1,243 @@
+{
+  "name": "test_selenium",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        368
+      ],
+      "id": "07736873-a6c6-4db7-ad14-959cb4ab89cf",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "authentication": "privateKey",
+        "command": "docker exec browserless ls -t /tmp/zeus/videos | head -n1"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        368
+      ],
+      "id": "b0da7298-1245-4277-b670-08dba3789539",
+      "name": "downloadedfilename",
+      "credentials": {
+        "sshPrivateKey": {
+          "id": "OudF3rsnasZbvo5u",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "081084ce-9ea0-4e70-b8c1-e48810deefab",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "zeusteste.mp4",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -640,
+        368
+      ],
+      "id": "b6a7143e-665c-4385-a991-a959c842b617",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "content": "## Check video url and file name"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -240,
+        -32
+      ],
+      "typeVersion": 1,
+      "id": "bd7876ac-9ace-463f-9c7b-c271cc6b3884",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This function takes all items outputted by the previous node (the Puppeteer node)\nconst inputItems = $input.all();\nconst slices = [];\nconst binaryDataKey = 'imageSlice'; // The key used in your Puppeteer output's binary field\n\nif (inputItems.length === 0) {\n    // Safety check in case no slices were returned\n    return [{ json: { error: 'No image slices received from Puppeteer node.' } }];\n}\n\n// 1. Iterate over all incoming n8n items (one for each slice)\nfor (const item of inputItems) {\n    if (item.binary && item.binary[binaryDataKey]) {\n        // 2. Extract the Base64 string from the binary property's data field.\n        // n8n stores the Base64 data in the `data` sub-property of the binary object.\n        const base64String = item.binary[binaryDataKey].data;\n        slices.push(base64String);\n    }\n}\n\n// 3. Return a single n8n item containing the final JSON structure\nreturn [{\n    json: {\n        slices: slices\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        448
+      ],
+      "id": "fec61835-dedf-4779-8454-0112583a4d8b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.100.164:4000/stitch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        480,
+        448
+      ],
+      "id": "cfc7af34-4e2c-4f32-a018-4d2e1a6a2fd0",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f2ce9137-c03c-466f-b7f5-3646c128f1c4",
+              "leftValue": "={{ $json.image_type }}",
+              "rightValue": "cropped",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        368
+      ],
+      "id": "8c17b06d-5430-450b-83a3-95c710cf8634",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/tmp/zeus/results/screenshot.png",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        704,
+        368
+      ],
+      "id": "69bdd07b-0335-4e89-8718-a6c173dc4212",
+      "name": "Read/Write Files from Disk"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "downloadedfilename",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "downloadedfilename": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "17dbe46e-ddb7-4a0f-8547-5afdccd51dd7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd3fb0bae0d9ef75dfef3d294ee11799aa32a788bbac584166822da613cc631e"
+  },
+  "id": "RWhmRpLMygLNBUi4",
+  "tags": []
+}
