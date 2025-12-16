@@ -1,5 +1,6 @@
-const { Builder, By, until, Key } = require('selenium-webdriver');
-const fs = require('fs');
+const { Builder, Capabilities, By, until, Key } = require('selenium-webdriver');
+const chrome = require('selenium-webdriver/chrome');
+// ... other imports
 
 // --- Configuration Constants ---
 const INITIAL_URL = 'https://zeus.tjpa.jus.br/';
@@ -95,11 +96,28 @@ async function takeDebugScreenshot(driver) {
     ];
 }
 
-// --- Main Execution Logic ---
-
 async function runScript() {
     let driver;
     try {
+
+        let options = new chrome.Options();
+        options.addArguments(
+            '--no-sandbox', // CRITICAL: Required for running as root in Docker
+            '--disable-dev-shm-usage', // Helps prevent crashes due to low memory area
+            '--headless', // Ensures it runs without a GUI
+            `--window-size=1920,1080` // Set a fixed size for consistent screenshots
+        );
+        
+        // Ensure you are using the correct binary location set in the Dockerfile
+        // (This might be automatically picked up, but is good practice)
+        options.setChromeBinaryPath(process.env.CHROME_BIN || '/usr/bin/chromium');
+        
+        // Initialize the WebDriver with the options
+        driver = await new Builder()
+            .forBrowser('chrome')
+            .setChromeOptions(options)
+            .build();
+
         // Initialize the WebDriver (e.g., for Chrome)
         driver = await new Builder().forBrowser('chrome').build();
         
