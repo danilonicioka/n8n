@@ -1,0 +1,32 @@
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-toolbox
+  namespace: dosb-n8n   # <-- change if needed
+  labels:
+    app: redis-toolbox
+spec:
+  restartPolicy: Never
+  containers:
+    - name: toolbox
+      image: redis:7.2-alpine
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "Toolbox ready. Sleeping...";
+          sleep infinity
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      env:
+        - name: TERM
+          value: xterm
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
