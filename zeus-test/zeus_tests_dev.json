@@ -1,0 +1,154 @@
+{
+  "name": "zeus_tests_dev",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "runCustomScript",
+        "scriptCode": "const INITIAL_URL = 'https://zeus.tjpa.jus.br/';\nconst LOGIN_BUTTON_SELECTOR = '[data-testid=\"stBaseButton-secondary\"]';\nconst SCROLL_CONTAINER_SELECTOR = '[data-testid=\"stMain\"]'\nconst PROCESSING_TIMEOUT_MS = 300000; // 5 minutes\nconst USERNAME = 'danilo.nicioka'; \nconst PASSWORD = 'Ad@maz080212';\nconst USERNAME_SELECTOR = '#username';\nconst PASSWORD_SELECTOR = '#password';\nconst CONFIRM_LOGIN_BUTTON_SELECTOR = '#kc-login';\nconst VIDEO_PATH = '/tmp/zeus/videos/zeusteste.mp4';\nconst FILE_UPLOAD_SELECTOR = '[data-testid=\"stFileUploaderDropzoneInput\"]';\nconst SCROLL_STEP = 1200;\nconst SETTLE_DELAY = 100;\nconst MAX_IDLE_ROUNDS = 8;\n\n// ===================== CONFIGURÁVEIS =====================\n\n// Sucesso por texto\nconst SUCCESS_TEXT_PATTERNS = [\n  'Você acabou de economizr',\n  //'Processamento concluído',\n];\n\n/**\n// Falha por texto - não implementado, apenas busca a msg de sucesso por enquanto\nconst ERROR_TEXT_PATTERNS = [\n  'ConnectionError',\n  'Houve um problema ao processar sua requisição',\n  'Bad Gateway',\n  //'upload falhou',\n  //'vídeo inválido',\n  //'não suportado',\n  //'limite excedido',\n];\n*/\n\n// ===================== UTILS =====================\nconst delay = (ms) => new Promise((res) => setTimeout(res, ms));\n\nfunction getContext() {\n  // Se precisar de iframe, adapte aqui com FRAME_URL_CONTAINS\n  return { ctx: $page, inFrame: false };\n}\n\n// Rola o contêiner (se scrollável) ou a janela\nasync function stepScroll(ctx, stepPx, containerSel) {\n  return ctx.evaluate((step, cSel) => {\n    const container = cSel ? document.querySelector(cSel) : null;\n    const scrollable = (container && container.scrollHeight > container.clientHeight) ? container : null;\n    const scroller = scrollable || document.scrollingElement || document.body;\n\n    scroller.scrollTop += step;\n\n    return {\n      afterHeight: scroller.scrollHeight,\n      used: scrollable ? 'container' : 'document',\n    };\n  }, stepPx, containerSel);\n}\n\n// Converte lista de strings em função de teste accent-insensitive\nfunction normalize(s) {\n  return (s || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();\n}\n\nfunction toTester(patterns) {\n  const needles = patterns.map((p) => normalize(p)).filter(Boolean);\n  return (hay) => {\n    const h = normalize(hay);\n    return needles.some((n) => h.includes(n));\n  };\n}\n\nconst testSuccessText = toTester(SUCCESS_TEXT_PATTERNS);\n//const testErrorText   = toTester(ERROR_TEXT_PATTERNS);\n\n// Marca o **primeiro elemento** cujo innerText bate com qualquer padrão e devolve o handle\nasync function markElementByText(ctx, patterns, attrName) {\n  const id = `${attrName}-${Date.now()}-${Math.random().toString(36).slice(2)}`;\n  const marked = await ctx.evaluate((pats, attr, containerSel) => {\n    function normalize(s) {\n      return (s || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();\n    }\n    const needles = pats.map((p) => normalize(p));\n    const container = containerSel ? document.querySelector(containerSel) : document.body;\n    const all = Array.from(container.querySelectorAll('*'));\n    for (const el of all) {\n      const t = el.innerText || el.textContent || '';\n      const h = normalize(t);\n      if (needles.some((n) => h.includes(n))) {\n        el.setAttribute(attr, id);\n        return id;\n      }\n    }\n    return null;\n  }, patterns, 'data-pptr-hit', SCROLL_CONTAINER_SELECTOR);\n\n  if (!marked) return null;\n  const handle = await ctx.$(`[data-pptr-hit=\"${id}\"]`);\n  return handle ? { handle, selector: `[data-pptr-hit=\"${id}\"]` } : null;\n}\n\n// Aguarda que o elemento tenha texto não vazio (se for alerta com <p>)\n\nasync function waitForNonEmptyText(ctx, handle, maxWaitMs) {\n  const attr = await handle.evaluate((el) => el.getAttribute('data-pptr-hit'));\n  if (attr) {\n    await ctx.waitForFunction(\n      (a) => {\n        const el = document.querySelector(`[data-pptr-hit=\"${a}\"]`);\n        if (!el) return false;\n        const t = el.innerText || el.textContent || '';\n        return !!t.trim();\n      },\n      { timeout: maxWaitMs },\n      attr\n    ).catch(() => {});\n    return;\n  }\n\n  const deadline = Date.now() + maxWaitMs;\n  while (Date.now() < deadline) {\n    const ok = await handle.evaluate((el) => {\n      const t = el.innerText || el.textContent || '';\n      return !!t.trim();\n    }).catch(() => true);\n    if (ok) break;\n    await delay(250);\n  }\n}\n\n// Screenshot de um handle\nasync function screenshotHandle(el) {\n  // Centraliza na viewport\n  try {\n    await el.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'center' }));\n  } catch {}\n  await delay(200);\n  const base64 = await el.screenshot({ type: 'png', encoding: 'base64' });\n  const box = await el.boundingBox();\n  return { data: base64, mimeType: 'image/png', fileName: `alert-${Date.now()}.png`, box };\n}\n\n// ===================== CORRIDA DE CONDIÇÕES =====================\n// Retorna {status: 'success'|'error', matchType: 'selector'|'text', selector?, textPattern?, handle?}\nasync function waitForOutcomeMulti(ctx) {\n  const start = Date.now();\n  let lastHeight = -1;\n  let idleRounds = 0;\n\n  while ((Date.now() - start) < PROCESSING_TIMEOUT_MS) {\n    //tenta sucesso por TEXTO\n    const bodyText = await ctx.evaluate(() => document.body.innerText || '');\n    if (testSuccessText(bodyText)) {\n      const okText = await markElementByText(ctx, SUCCESS_TEXT_PATTERNS, 'pptr-success');\n      if (okText) return { status: 'success', matchType: 'text', textPattern: 'SUCCESS_TEXT_PATTERNS', selector: okText.selector, handle: okText.handle };\n    }\n\n    // passo de scroll\n    const stats = await stepScroll(ctx, SCROLL_STEP, SCROLL_CONTAINER_SELECTOR);\n    if (stats.afterHeight === lastHeight) idleRounds += 1;\n    else { idleRounds = 0; lastHeight = stats.afterHeight; }\n    await delay(SETTLE_DELAY);\n\n    // fundo absoluto se estagnar\n    if (idleRounds >= MAX_IDLE_ROUNDS) {\n      await ctx.evaluate((cSel) => {\n        const container = cSel ? document.querySelector(cSel) : null;\n        const scroller = (container && container.scrollHeight > container.clientHeight)\n          ? container : (document.scrollingElement || document.body);\n        scroller.scrollTop = scroller.scrollHeight;\n      }, SCROLL_CONTAINER_SELECTOR);\n      await delay(Math.max(SETTLE_DELAY, 250));\n      idleRounds = 0;\n    }\n  }\n\n  // Se não encontrou sucesso, retorna erro\n  return { status: 'error' };\n}\n\nasync function findAlertAndScreenshot() {\n  const { ctx, inFrame } = getContext();\n\n  const outcome = await waitForOutcomeMulti(ctx);\n\n  if (outcome.status === 'error') {\n    return [{\n      json: {\n        status: 'error',\n        url: $page.url(),\n        capturedAt: new Date().toISOString(),\n      }\n    }];\n  }\n\n  // Garantir que o elemento tenha conteúdo\n  try { await waitForNonEmptyText(ctx, outcome.handle, Math.min(20000, PROCESSING_TIMEOUT_MS)); } catch {}\n\n  // Hi-DPI opcional para nitidez\n  const originalViewport = $page.viewport();\n  await $page.setViewport({ ...(originalViewport || { width: 1280, height: 800 }), deviceScaleFactor: 2 });\n\n  // Screenshot do elemento encontrado\n  const shot = await screenshotHandle(outcome.handle);\n  const elementText = await outcome.handle.evaluate(el => el.innerText || el.textContent || '');\n\n  return [{\n    json: {\n      status: 'success',\n      matchType: outcome.matchType,\n      matchSelector: outcome.selector || null,\n      matchTextPattern: outcome.textPattern || null,\n      elementText,\n      inFrame,\n      url: $page.url(),\n      capturedAt: new Date().toISOString(),\n    },\n    binary: { elementScreenshot: shot }\n  }];\n}\n\nasync function main() {\n  // abre a página\n  await $page.goto(INITIAL_URL, { waitUntil: 'domcontentloaded' });\n\n  // botão de login (evite nth-child em produção; aqui mantido)\n  await $page.waitForSelector(LOGIN_BUTTON_SELECTOR, { visible: true, timeout: 30000 });\n  await Promise.all([\n    $page.waitForNavigation({ waitUntil: 'load', timeout: 60000 }),\n    $page.click(LOGIN_BUTTON_SELECTOR),\n  ]);\n\n  // form de login\n  await $page.waitForSelector(USERNAME_SELECTOR, { visible: true, timeout: 60000 });\n  await $page.waitForSelector(PASSWORD_SELECTOR, { visible: true, timeout: 60000 });\n  await $page.waitForSelector(CONFIRM_LOGIN_BUTTON_SELECTOR, { visible: true, timeout: 60000 });\n\n  await $page.type(USERNAME_SELECTOR, USERNAME, { delay: 40 });\n  await $page.type(PASSWORD_SELECTOR, PASSWORD, { delay: 40 });\n\n  await Promise.all([\n    $page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 60000 }),\n    $page.click(CONFIRM_LOGIN_BUTTON_SELECTOR),\n  ]);\n\n  // upload\n  const fileInput = await $page.waitForSelector(FILE_UPLOAD_SELECTOR, { visible: true, timeout: 60000 });\n  await fileInput.uploadFile(VIDEO_PATH);\n\n  // aguarda resultado\n  return await findAlertAndScreenshot();\n}\n\nreturn await main();\n",
+        "options": {
+          "browserWSEndpoint": "http://browserless:3000?token=6R0W53R135510"
+        }
+      },
+      "type": "n8n-nodes-puppeteer.puppeteer",
+      "typeVersion": 1,
+      "position": [
+        832,
+        336
+      ],
+      "id": "79a0f9c1-1837-436e-a331-74198d7a46ef",
+      "name": "zeus"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            },
+            {
+              "triggerAtHour": 14
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        384,
+        336
+      ],
+      "id": "f2025ca8-3e3c-46b5-9e20-fa8a8fbbf666",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "HEAD",
+        "url": "http://browserless:8080/videos/zeusteste.mp4",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        608,
+        336
+      ],
+      "id": "9336ba6e-9504-44a0-985d-b060b700b093",
+      "name": "HTTP Request",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "25c954bb-12d8-4b98-986b-d533be77a850",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1056,
+        336
+      ],
+      "id": "7ec602a1-9144-4166-a3ea-67f23510e367",
+      "name": "result"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "zeus": {
+      "main": [
+        [
+          {
+            "node": "result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "zeus",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "result": {
+      "main": [
+        [],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6895b107-a12a-4675-a5f7-08ec9ba39aad",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f83938c604fd61ef30b704f19803da6d669ad618b6dcce28b5567b3a82953c1"
+  },
+  "id": "7GlTCj5QbPeB36YM",
+  "tags": [
+    {
+      "updatedAt": "2025-12-30T12:54:53.778Z",
+      "createdAt": "2025-12-30T12:54:53.778Z",
+      "id": "meUj7ytCkRKqHX6I",
+      "name": "zeus"
+    }
+  ]
+}
