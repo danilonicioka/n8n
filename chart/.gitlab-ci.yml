@@ -1,0 +1,25 @@
+stages:
+    - build
+    - deploy
+    - config
+
+default:
+    image: alpine/k8s:1.28.1
+
+variables:
+  HELM_REPO_NAME: "dosb-n8n"
+  HELM_REPO_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/helm/stable"
+
+build helm package:
+    when: manual
+    stage: build
+    before_script:
+        - helm repo add --username gitlab-ci-token --password "${CI_JOB_TOKEN}" "${HELM_REPO_NAME}" "${HELM_REPO_URL}"
+        - helm package .
+    script:
+        - helm cm-push n8n-*.tgz "${HELM_REPO_NAME}"
+
+.local:
+    stage: deploy
+    script:
+        - helm upgrade "${HELM_REPO_NAME}" . -i -f=$VALUES --create-namespace -n "${HELM_REPO_NAME}"
