@@ -41,7 +41,7 @@ maintainers:
 - email: hello@cloudpirates.io
   name: CloudPirates GmbH & Co. KG
   url: https://www.cloudpirates.io
-name: postgres
+name: postgresql
 sources:
 - https://github.com/CloudPirates-io/helm-charts/tree/main/charts/postgres
 - https://github.com/postgres/postgres
