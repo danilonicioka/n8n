@@ -110,8 +110,8 @@ main:
         port: ""                                             # N8N_SMTP_PORT
         user: ""                      # N8N_SMTP_USER
         sender: ""                         # N8N_SMTP_SENDER
-        ssl: ""                                           # N8N_SMTP_SSL
-        starttls: ""                                       # N8N_SMTP_STARTTLS
+        ssl: "false"                                           # N8N_SMTP_SSL
+        starttls: "false"                                       # N8N_SMTP_STARTTLS
       runners:
         enabled: "true"
     webhook:
@@ -121,7 +121,7 @@ main:
     db:
       type: "postgresdb"                        # DB_TYPE
       postgresdb:
-        host: n8n-postgres        # DB_POSTGRESDB_HOST
+        host: n8n-postgresql        # DB_POSTGRESDB_HOST
         port: "5432"                              # DB_POSTGRESDB_PORT
         database: "n8n"                          # DB_POSTGRESDB_DATABASE
         user: "n8n"                      # DB_POSTGRESDB_USER
@@ -423,7 +423,7 @@ worker:
     db:
       type: "postgresdb"                           # DB_TYPE
       postgresdb:
-        host: n8n-postgres       # DB_POSTGRESDB_HOST
+        host: n8n-postgresql       # DB_POSTGRESDB_HOST
         port: "5432"                                # DB_POSTGRESDB_PORT
         database: "n8n"                          # DB_POSTGRESDB_DATABASE
         user: "n8n"   

@@ -8,7 +8,7 @@ entries:
       artifacthub.io/prerelease: "false"
     apiVersion: v2
     appVersion: 1.122.4
-    created: "2026-01-05T15:32:03.752647749-03:00"
+    created: "2026-01-07T10:07:52.248613-03:00"
     dependencies:
     - condition: redis.enabled
       name: redis
@@ -21,7 +21,7 @@ entries:
     description: Helm Chart for deploying n8n on Kubernetes, a fair-code workflow
       automation platform with native AI capabilities for technical teams. Easily
       automate tasks across different services.
-    digest: a0e327fc96eec6462623b53ce384cae2a2e9f4861f9b79883554e8708cbede88
+    digest: 8530b8442cc5338534e3808061e461da857ce7514c7d91f34a72aebfa9ba5f83
     home: https://github.com/8gears/n8n-helm-chart
     icon: https://avatars1.githubusercontent.com/u/45487711?s=200&v=4
     keywords:
@@ -46,4 +46,4 @@ entries:
     urls:
     - n8n-2.0.1.tgz
     version: 2.0.1
-generated: "2026-01-05T15:32:03.74816277-03:00"
+generated: "2026-01-07T10:07:52.243992691-03:00"
