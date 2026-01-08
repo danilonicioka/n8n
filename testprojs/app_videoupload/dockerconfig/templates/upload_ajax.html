@@ -1,0 +1,196 @@
+
+<!doctype html>
+<title>Scrollable Upload Content</title>
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+        font-family: Arial, sans-serif;
+    }
+    #app-container {
+        display: flex;
+        height: 100vh;
+    }
+    #left-panel {
+        width: 150px;
+        padding: 20px 0;
+        background-color: #333;
+        color: white;
+        text-align: center;
+        flex-shrink: 0;
+    }
+    #right-content {
+        flex-grow: 1;
+        padding: 20px;
+        overflow-y: auto;
+        background-color: #ffffff;
+    }
+
+    /* Alert styles reused for both top alert and final alert */
+    .alert-box {
+        padding: 16px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        font-weight: bold;
+    }
+    .alert-success {
+        background: #e6ffed;
+        color: #037a2c;
+        border-color: #c5f7d1;
+    }
+    .alert-error {
+        background: #ffecec;
+        color: #9b1c1c;
+        border-color: #f7c5c5;
+    }
+
+    /* Spacer text style */
+    #spacer h2 {
+        color: #007bff;
+        margin-top: 50vh;
+        text-align: center;
+    }
+</style>
+
+<div id="app-container">
+    <div id="left-panel">
+        <h1>Video Uploader</h1>
+    </div>
+
+    <div id="right-content">
+        <h2>Upload Control</h2>
+        <p>Select a video file to begin the instant upload. Scroll down after the timer to see the results!</p>
+
+        <!-- 🔵 TOP ALERT: fixed (does not change), uses the SAME ID as the final error message -->
+        <div class="alert-box alert-error">
+            <!-- You can replace this with an <img> if you prefer a fixed image -->
+            <!-- e.g., /static/images/error-banner.png -->
+            <span id="errorAlertMessage">Static error banner (top): This is a fixed alert. It does not change.</span>
+        </div>
+
+        <form id="uploadForm" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" id="videoFile" accept="video/*">
+        </form>
+
+        <div id="statusMessage" style="margin-top: 20px;"></div>
+
+        <hr style="margin: 30px 0;">
+        <h3>Results Area</h3>
+
+        <div id="spacer" style="display: none; height: 100vh;">
+            <h2>Please wait for the server processing timer to finish...</h2>
+        </div>
+
+        <!-- 🔴 FINAL ALERT: shown after the timer; also uses the SAME ID -->
+        <div id="finalAlert" class="alert-box alert-error" style="display:none;">
+            <span id="errorAlertMessage">Processing result will appear here…</span>
+            <div id="finalPreview" style="margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+  const fileInput = document.getElementById('videoFile');
+  const statusMessage = document.getElementById('statusMessage');
+  const uploadForm = document.getElementById('uploadForm');
+  const spacer = document.getElementById('spacer');
+  const finalAlert = document.getElementById('finalAlert');
+  const finalPreview = document.getElementById('finalPreview');
+
+  // IMPORTANT: duplicate IDs exist intentionally per your request.
+  // Use querySelectorAll to access both elements that share the same ID.
+  const errorAlertMessages = () => document.querySelectorAll('#errorAlertMessage');
+
+  const UPLOAD_ENDPOINT = "{{ upload_url }}";
+
+  fileInput.addEventListener('change', function() {
+    if (this.files.length === 0) return;
+
+    const file = this.files[0];
+    statusMessage.innerHTML = `<span style="color: blue;">Uploading <strong>${file.name}</strong>...</span>`;
+
+    spacer.style.display = 'none';
+    finalAlert.style.display = 'none';
+    finalPreview.innerHTML = '';
+
+    const formData = new FormData(uploadForm);
+
+    fetch(UPLOAD_ENDPOINT, {
+      method: 'POST',
+      body: formData
+    })
+    .then(async (response) => {
+      let data = null;
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok) {
+        const msg = (data && data.message) ? data.message : `HTTP error! status: ${response.status}`;
+        throw new Error(msg);
+      }
+      return data;
+    })
+    .then(data => {
+      const timerDuration = 3000;
+      statusMessage.innerHTML = `<span style="color: green;">Upload complete. Processing timer started (${timerDuration/1000}s)...</span>`;
+
+      setTimeout(() => {
+        spacer.style.display = 'block';
+        finalAlert.style.display = 'block';
+
+        // Update ONLY the final alert’s text (second match)
+        const nodes = errorAlertMessages();
+        const finalMsgNode = nodes[1] || nodes[0]; // fallback to first if DOM changes
+        const text = (data.success)
+          ? (data.message || 'Upload succeeded.')
+          : (data.message || 'Unknown error occurred.');
+
+        finalMsgNode.textContent = text;
+
+        // Style final alert based on result
+        finalAlert.classList.remove('alert-success', 'alert-error');
+        finalAlert.classList.add(data.success ? 'alert-success' : 'alert-error');
+
+        // Show preview on success
+        if (data.success) {
+          displayVideo(data.url, data.filename);
+        } else {
+          finalPreview.innerHTML = ''; // no preview on error
+        }
+
+        statusMessage.innerHTML = 'Processing complete. Scroll down to see the result.';
+      }, timerDuration);
+    })
+    .catch(error => {
+      const timerDuration = 3000;
+      statusMessage.innerHTML = `<span style="color: red;">Upload failed. Processing timer started (${timerDuration/1000}s)...</span>`;
+
+      setTimeout(() => {
+        spacer.style.display = 'block';
+        finalAlert.style.display = 'block';
+
+        // Update ONLY the final alert’s text (second match)
+        const nodes = errorAlertMessages();
+        const finalMsgNode = nodes[1] || nodes[0];
+        finalMsgNode.textContent = error.message;
+
+        finalAlert.classList.remove('alert-success', 'alert-error');
+        finalAlert.classList.add('alert-error');
+
+        finalPreview.innerHTML = '';
+        statusMessage.innerHTML = 'Processing complete. Scroll down to see details.';
+      }, timerDuration);
+    });
+  });
+
+  function displayVideo(url, filename) {
+    if (!url) return;
+    const videoHTML = `
+      <h3>Video Preview: ${filename}</h3>
+      <video width="80%" controls style="max-width: 600px;">
+        ${url}
+        Your browser does not support the video tag.
+      </video>
+    `;
+    finalPreview.innerHTML = videoHTML;
+  }
+</script>

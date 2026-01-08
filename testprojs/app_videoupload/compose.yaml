@@ -2,8 +2,7 @@ version: '3.8'
 
 services:
   web:
-    # Build the image from the Dockerfile in the current directory
-    build: . 
+    image: danilonicioka/app_videoupload:latest
     # Map port 5000 on your local machine to port 5000 in the container
     ports:
       - "5000:5000"

@@ -1,0 +1,143 @@
+
+# --- ConfigMap for non-sensitive environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+  labels:
+    app: web
+data:
+  FLASK_ENV: "production"
+---
+# --- Secret for sensitive values
+apiVersion: v1
+kind: Secret
+metadata:
+  name: web-secret
+  labels:
+    app: web
+type: Opaque
+stringData:
+  # Replace this with a strong, random string
+  SECRET_KEY: "replace-with-a-strong-random-string"
+---
+# --- PersistentVolumeClaim for uploads directory
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: web-uploads-pvc
+  labels:
+    app: web
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# --- Deployment for the Flask/Gunicorn app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: web
+          # TODO: set your registry, image name and tag after building/pushing
+          image: danilonicioka/app_videoupload:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: web-config
+            - secretRef:
+                name: web-secret
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/static/uploads
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: 1000
+            runAsGroup: 1000
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: web-uploads-pvc
+---
+# --- Service to expose the Deployment inside the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+  type: ClusterIP
+---
+# --- Ingress for external access (requires an Ingress controller like NGINX)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  labels:
+    app: web
+  annotations:
+    # Allow uploads up to 100MB to match Flask MAX_CONTENT_LENGTH
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: test-app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 5000
